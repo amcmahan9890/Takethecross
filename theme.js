@@ -1,0 +1,1 @@
+try{var t=localStorage.getItem("yow-theme"),z=localStorage.getItem("yow-text");if(t&&t!=="auto")document.documentElement.dataset.theme=t;if(z&&z!=="normal")document.documentElement.dataset.text=z}catch(e){}

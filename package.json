@@ -1,0 +1,15 @@
+{
+  "name": "take-the-cross",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Take the Cross: read the Bible in a year together.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

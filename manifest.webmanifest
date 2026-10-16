@@ -1,0 +1,17 @@
+{
+  "name": "Take the Cross",
+  "short_name": "Take the Cross",
+  "description": "Read the Bible in a year together, one episode a day.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#11142A",
+  "theme_color": "#11142A",
+  "categories": ["lifestyle", "education"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
