@@ -103,7 +103,15 @@
   };
   B.sendCode = async function (email) {
     var r = await sb.auth.signInWithOtp({ email: email, options: { shouldCreateUser: true, emailRedirectTo: location.origin + "/" } });
-    fail(r.error);
+    if (r.error) {
+      var m = String(r.error.message || "") + " " + String(r.error.code || "");
+      // rate limits and connection problems keep their own friendly messages
+      if (/rate|too many|over_email|fetch|network/i.test(m)) fail(r.error);
+      var e = new Error("We couldn't send the email right now. Please try again in a few minutes.");
+      e.code = "send_failed";
+      e.detail = r.error.message;
+      throw e;
+    }
   };
   B.verifyCode = async function (email, token) {
     var r = await sb.auth.verifyOtp({ email: email, token: token, type: "email" });
@@ -161,6 +169,14 @@
       fail(r.error);
       return r.data || [];
     }, cb, { debounce: 1500, poll: 60000 });
+  };
+  B.teamTotals = async function (week) {
+    var r = await sb.rpc("team_totals", { p_week: week });
+    fail(r.error);
+    return r.data;
+  };
+  B.watchTeam = function (week, cb) {
+    return live(["profiles"], function () { return B.teamTotals(week); }, cb, { debounce: 2000, poll: 60000 });
   };
   B.fetchProfiles = async function (ids) {
     if (!ids || !ids.length) return [];

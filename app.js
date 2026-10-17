@@ -32,13 +32,14 @@ const CARDS = [
   {id:"jerusalem",name:"New Jerusalem",req:"Finish all 365 days",test:s=>s.done>=365}
 ];
 const EMBLEMS = [
-  {id:"first",name:"First Light",glyph:"✝",req:"Finish Day 1",test:s=>s.done>=1,c:"#2F4F9A"},
+  {id:"first",name:"First Light",glyph:"\u271D\uFE0E",req:"Finish Day 1",test:s=>s.done>=1,c:"#2F4F9A"},
   {id:"s3",name:"Third Day",glyph:"III",req:"3-day streak",test:s=>s.best>=3,c:"#2E6B45"},
   {id:"think",name:"Lectio",glyph:"✎",req:"Write your first reflection",test:s=>s.refl>=1,c:"#8A5A2B"},
   {id:"sharp",name:"Sharp Mind",glyph:"5/5",req:"Get a perfect quiz",test:s=>s.perfects>=1,c:"#2E6B45"},
   {id:"s7",name:"Sabbath Keeper",glyph:"VII",req:"7-day streak",test:s=>s.best>=7,c:"#6A3E8C"},
-  {id:"team",name:"Fellowship",glyph:"⚔",req:"Win a weekly team challenge",test:s=>s.wins>=1,c:"#A32626"},
-  {id:"cheer",name:"Encourager",glyph:"♥",req:"Send 10 encouragements",test:s=>s.cheers>=10,c:"#8E2B5A"},
+  {id:"habit",name:"Weekly Habit",glyph:"\u2713",req:"Reach 4 weekly goals",test:s=>s.solo>=4,c:"#2E6B45"},
+  {id:"team",name:"Fellowship",glyph:"\u2694\uFE0E",req:"Win a weekly team challenge",test:s=>s.wins>=1,c:"#A32626"},
+  {id:"cheer",name:"Encourager",glyph:"\u2665\uFE0E",req:"Send 10 encouragements",test:s=>s.cheers>=10,c:"#8E2B5A"},
   {id:"pray",name:"Intercessor",glyph:"✦",req:"Pray for 10 requests",test:s=>s.prayed>=10,c:"#2F4F9A"},
   {id:"d40",name:"Forty Days",glyph:"XL",req:"Finish 40 days",test:s=>s.done>=40,c:"#A32626"},
   {id:"s30",name:"Faithful Month",glyph:"✠",req:"30-day streak",test:s=>s.best>=30,c:"#A32626"},
@@ -48,17 +49,18 @@ const EMBLEMS = [
   {id:"all",name:"Alpha and Omega",glyph:"ΑΩ",req:"Finish all 365 days",test:s=>s.done>=365,c:"#94701F"}
 ];
 const CHALLENGES = [
-  {t:"Finish 6 episodes each",unit:"episodes",goal:6,f:a=>a.ep},
-  {t:"Score 30 quiz points each",unit:"points",goal:30,f:a=>a.qp},
-  {t:"Write 3 reflections each",unit:"reflections",goal:3,f:a=>a.rf},
-  {t:"Show up on 5 different days each",unit:"days",goal:5,f:a=>a.ad}
+  {id:"ep",t:"Finish 5 episodes",unit:"episodes",goal:5,f:a=>a.ep,tm:t=>t.ep,tt:"episodes finished together"},
+  {id:"ad",t:"Read on 4 different days",unit:"days",goal:4,f:a=>a.ad,tm:t=>t.ad,tt:"reading days together"},
+  {id:"rf",t:"Write 3 reflections",unit:"reflections",goal:3,f:a=>a.rf,tm:t=>t.rf,tt:"reflections written together"}
 ];
+const MILESTONES = [[50,"50","Mustard Seed"],[100,"100","Loaves and Fishes"],[250,"250","Cloud of Witnesses"],[500,"500","Twelve Baskets"],
+  [1000,"1K","Pentecost"],[2500,"2.5K","Mighty Fortress"],[5000,"5K","Cathedral"],[10000,"10K","New Jerusalem"]];
 
 /* ---------- state ---------- */
 const S = {uid:null,session:null,email:"",local:false,me:null,players:{},extra:{},tab:"today",viewDay:null,readOnly:false,booted:false,
   isAdmin:false,ai:false,authModal:null,liveStops:[],
   day:{n:null,doc:undefined,comments:[],answers:{},rx:[],unsubs:[]}, journal:{}, prayers:[], prayRx:[], cheers:[], quizSel:{},
-  cheerOpen:null, redoDay:null, busy:{}, winPending:null, frozeChecked:false, saving:0};
+  cheerOpen:null, redoDay:null, busy:{}, winPending:null, soloPending:null, mapView:"auto", team:null, teamCache:{}, teamLoading:{}, frozeChecked:false, saving:0};
 
 /* ---------- utils ---------- */
 const $=(s,r=document)=>r.querySelector(s);
@@ -103,19 +105,19 @@ function normalizeSum(r){
     wk[k]={ep:numIn(w.ep,400),rf:numIn(w.rf,400),qp:numIn(w.qp,4000),ad:numIn(w.ad,7)};
   }
   return{xp:numIn(r.xp,1e6),done:numIn(r.done,365),streak:numIn(r.streak,400),streakThru:dateOk(r.streakThru),best:numIn(r.best,400),
-    refl:numIn(r.refl,400),qp:numIn(r.qp,4000),perfects:numIn(r.perfects,400),wins:numIn(r.wins,60),cheers:numIn(r.cheers,1e6),
+    refl:numIn(r.refl,400),qp:numIn(r.qp,4000),perfects:numIn(r.perfects,400),wins:numIn(r.wins,60),solo:numIn(r.solo,60),cheers:numIn(r.cheers,1e6),
     prayed:numIn(r.prayed,1e6),freezes:numIn(r.freezes,3),next:Math.max(1,numIn(r.next,365)),last:dateOk(r.last),wk};
 }
 function statsFromSum(m){
   const alive=m.streakThru&&m.streakThru>=shift(today(),-1),streak=alive?m.streak:0;
-  return{done:m.done,streak,best:Math.max(m.best,streak),refl:m.refl,qp:m.qp,perfects:m.perfects,wins:m.wins,xp:m.xp,cheers:m.cheers,prayed:m.prayed,freezes:m.freezes};
+  return{done:m.done,streak,best:Math.max(m.best,streak),refl:m.refl,qp:m.qp,perfects:m.perfects,wins:m.wins,solo:m.solo,xp:m.xp,cheers:m.cheers,prayed:m.prayed,freezes:m.freezes};
 }
 function computeSummary(p){
   const s0=stats(p),all=new Set([...(p.dates||[]),...(p.frozen||[])]);
   const dates=(p.dates||[]).slice().sort(),ws=weekStart(today()),wk={};
   [0,-7,-14].forEach(o=>{const w=shift(ws,o);wk[w]=weekActivity(p,w)});
   return{xp:s0.xp,done:s0.done,streak:s0.streak,streakThru:s0.streak?(all.has(today())?today():shift(today(),-1)):"",best:s0.best,refl:s0.refl,
-    qp:s0.qp,perfects:s0.perfects,wins:s0.wins,cheers:s0.cheers,prayed:s0.prayed,freezes:s0.freezes,next:nextDay(p),
+    qp:s0.qp,perfects:s0.perfects,wins:s0.wins,solo:s0.solo,cheers:s0.cheers,prayed:s0.prayed,freezes:s0.freezes,next:nextDay(p),
     last:dates.length?dates[dates.length-1]:"",wk,card:p.card||"vigil",emblem:p.emblem||""};
 }
 const finishedToday=p=>isFull(p)?(p.dates||[]).includes(today()):(!!p.sum&&p.sum.last===today());
@@ -134,9 +136,9 @@ function stats(p){
   const best=Math.max(p.best||0,longestRun(all),streak);
   const refl=(p.reflected||[]).length;
   let qp=0,perfects=0;const q=p.quiz||{};for(const k in q){qp+=(q[k].s||0)*2;if(q[k].s===5)perfects++}
-  const wins=(p.wins||[]).length;
-  const xp=done*10+refl*5+qp+wins*25;
-  return {done,streak,best,refl,qp,perfects,wins,xp,cheers:p.cheersSent||0,prayed:p.prayed||0,freezes:p.freezes||0};
+  const wins=(p.wins||[]).length,solo=(p.solo||[]).length;
+  const xp=done*10+refl*5+qp+wins*25+solo*15;
+  return {done,streak,best,refl,qp,perfects,wins,solo,xp,cheers:p.cheersSent||0,prayed:p.prayed||0,freezes:p.freezes||0};
 }
 function rankOf(xp){let i=0;for(let k=0;k<RANKS.length;k++)if(xp>=RANKS[k][0])i=k;return{name:RANKS[i][1],min:RANKS[i][0],next:RANKS[i+1]||null}}
 function nextDay(p){if(!isFull(p)&&p.sum)return p.sum.next||1;const set=new Set(p.completed||[]);for(let i=1;i<=TOTAL;i++)if(!set.has(i))return i;return TOTAL}
@@ -152,12 +154,15 @@ function weekActivity(p,ws){
 function currentChallenge(){return challengeFor(weekStart(today()))}
 function challengeFor(ws){
   const idx=Math.floor(Math.round(parseD(ws).getTime()/864e5)/7)%CHALLENGES.length;
-  const ch=CHALLENGES[(idx+CHALLENGES.length)%CHALLENGES.length];
-  const members=Object.entries(S.players).filter(([,p])=>p&&p.name);
-  const per=members.map(([id,p])=>({id,p,v:ch.f(weekActivity(p,ws))}));
-  const prog=per.length?per.reduce((t,x)=>t+Math.min(x.v,ch.goal),0)/(ch.goal*per.length):0;
-  return{ws,ch,per,prog};
+  return{ws,ch:CHALLENGES[(idx+CHALLENGES.length)%CHALLENGES.length]};
 }
+/* Team numbers are group totals only. The server never sends names with them. */
+function normalizeTeam(t){
+  t=t&&typeof t==="object"?t:{};
+  return{members:numIn(t.members,1e7),episodes_total:numIn(t.episodes_total,1e9),active_30d:numIn(t.active_30d,1e7),readers:numIn(t.readers,1e7),
+    ep:numIn(t.ep,1e8),rf:numIn(t.rf,1e8),qp:numIn(t.qp,1e9),ad:numIn(t.ad,1e8)};
+}
+const teamGoal=(t,ch)=>Math.max(ch.goal,Math.round(Math.max(1,t.active_30d)*ch.goal*0.6));
 
 let toastQ=[],toastOn=false;
 function toast(msg){if(toastQ.length<4)toastQ.push(msg);if(!toastOn)nextToast()}
@@ -256,67 +261,121 @@ function avatar(p,cls="av"){
     <g clip-path="url(#cp)">${body}</g></svg>`;
 }
 function emblemSVG(e,locked){
-  const fill=locked?"#888":e.c,fs=e.glyph.length>2?11:e.glyph.length>1?14:19;
+  const gl=e.glyph.replace(/\uFE0E/g,""),fill=locked?"#888":e.c,fs=gl.length>2?11:gl.length>1?14:19;
   return `<svg viewBox="0 0 40 46" aria-hidden="true"><path d="M20 1.5l17 5.5v15c0 11-7.5 18.5-17 22.5C10.5 40.5 3 33 3 22V7z" fill="${fill}" stroke="#E2BD5E" stroke-width="2"/>
   <text x="20" y="${23+fs*.36}" text-anchor="middle" font-family="Alegreya SC,Georgia,serif" font-weight="800" font-size="${fs}" fill="#F8EFD8">${esc(e.glyph)}</text></svg>`;
 }
 
 /* ---------- map of the biblical world ---------- */
-const MAP={lon0:18,lat1:42,k:12,w:384,h:240};
-const PX=lon=>(lon-MAP.lon0)*MAP.k, PY=lat=>(MAP.lat1-lat)*MAP.k;
-const pts=a=>a.map(([lo,la])=>PX(lo).toFixed(1)+","+PY(la).toFixed(1)).join(" ");
-const MED=[[18,42],[19.4,42],[19.4,41],[19.5,40.3],[20.2,39.5],[21,38.4],[21.7,36.9],[22.4,36.4],[22.8,37.5],[23.2,36.5],[23.5,38],[24,38.2],[22.9,39.5],[22.6,40.4],[23.7,40.2],[24,40.8],[26,40.8],[26.3,40.1],[26.8,39.3],[26.6,38.4],[27.3,37.5],[27.6,36.7],[28.5,36.6],[29.6,36.2],[30.6,36.8],[31.5,36.6],[32.8,36],[34,36.3],[34.9,36.8],[35.8,36.7],[36.1,35.9],[35.8,35.2],[35.9,34.6],[35.5,33.9],[35.2,33.1],[34.9,32.4],[34.6,31.7],[34.2,31.3],[33.4,31.1],[32.3,31.25],[31.3,31.55],[30.3,31.4],[29.5,30.9],[28,31.1],[26,31.6],[24.5,31.9],[23.2,32.3],[22.2,32.9],[21,32.8],[20.1,32.2],[19.9,31.2],[19.1,30.3],[18,30.6]];
-const BLACK=[[27.9,42],[28.1,41.6],[29.1,41.2],[31,41.1],[32.5,41.8],[33.3,42]];
+/* Every day's pins come from bible-plan.js (the official reading plan). Three zoom levels share one set of coordinates. */
+const VIEWS={
+  holy:{label:"Close-up",lon0:33.4,lat1:34.2,k:48,x0:33.4,x1:41.4,y0:29.2,y1:34.2},
+  near:{label:"Region",lon0:18,lat1:42,k:12,x0:18,x1:50,y0:22,y1:42},
+  wide:{label:"Wide",lon0:8,lat1:44.5,k:9.1,x0:8,x1:50.2,y0:18.1,y1:44.5}
+};
+const MW=384,MH=240;
+const SEA=[[6,43.1],[7.3,43.7],[8,43.85],[8.6,44.3],[8.95,44.4],[9.4,44.3],[9.85,44.05],[10.25,43.85],[10.3,43.5],[10.55,42.95],[11.2,42.43],[11.8,42.1],[12.25,41.73],[12.6,41.45],[13.05,41.23],[13.57,41.2],[14.25,40.85],[14.35,40.6],[14.77,40.65],[15,40.4],[15.3,40],[15.6,40],[15.95,39.5],[16,39.3],[16.2,38.95],[15.9,38.68],[15.9,38.43],[15.65,38.1],[16.07,37.92],[16.5,38.3],[16.55,38.8],[17.1,39.05],[17.15,39.4],[16.6,39.7],[16.65,40.1],[16.85,40.35],[17.25,40.45],[17.7,40.3],[17.98,40.05],[18.36,39.8],[18.5,40.15],[17.95,40.65],[16.87,41.12],[16.1,41.9],[15,42],[14.2,42.46],[13.5,43.62],[12.55,44.06],[12.3,44.42],[12.3,46],[14,46],[14.5,45.2],[14.9,44.6],[15.2,44.1],[16,43.55],[16.45,43.5],[17.3,43],[17.8,42.75],[18.1,42.6],[18.6,42.35],[19.1,41.95],[19.45,41.3],[19.5,40.5],[19.95,39.8],[20.25,39.3],[20.75,38.95],[20.7,38.7],[21.08,38.53],[21.4,38.37],[21.73,38.25],[21.38,38.17],[21.15,37.9],[21.32,37.65],[21.67,37.25],[21.7,36.82],[22.1,36.55],[22.48,36.39],[22.8,36.5],[23.2,36.43],[23,36.9],[22.9,37.3],[22.8,37.55],[23,37.95],[23.62,37.94],[24.02,37.65],[24.05,38.2],[23.2,38.65],[23,39.35],[22.7,40.2],[22.9,40.6],[23.9,40],[24.35,40.15],[24.4,40.93],[25.5,40.85],[26.1,40.8],[26.2,40.4],[26.18,40.05],[26.13,39.76],[26.34,39.49],[26.9,39.55],[26.93,39.2],[26.75,38.67],[27.1,38.43],[26.3,38.3],[27.25,37.86],[27.27,37.38],[27.43,37.04],[27.7,36.75],[28.27,36.85],[29.1,36.62],[29.64,36.2],[30.58,36.6],[30.7,36.88],[31.39,36.77],[32,36.54],[32.8,36.07],[33.9,36.37],[34.64,36.8],[35.35,36.55],[35.78,36.77],[36.17,36.58],[35.9,36.4],[35.93,36.05],[35.78,35.52],[35.88,34.89],[35.82,34.44],[35.65,34.12],[35.5,33.9],[35.37,33.56],[35.2,33.27],[35.1,33.1],[35.07,32.93],[34.98,32.82],[34.9,32.5],[34.75,32.05],[34.55,31.67],[34.45,31.5],[34.25,31.28],[33.8,31.13],[32.3,31.26],[31.8,31.45],[30.4,31.5],[29.9,31.2],[28.8,30.9],[27.2,31.35],[25.2,31.57],[23.97,32.08],[22.65,32.77],[21.9,32.9],[20.07,32.12],[20.2,30.7],[19,30.5],[16.6,31.2],[15.1,32.4],[14.3,32.65],[13.2,32.9],[12.1,32.9],[10.9,33.8],[10.1,33.9],[10.76,34.74],[10.6,35.8],[11.05,37.05],[10.3,36.85],[9.85,37.28],[8.75,36.95],[6,36.95]];
+const BLACK=[[29,41.2],[31,41.1],[33,42],[35,42],[36.5,41.4],[38.5,41],[41.5,41.5],[41.7,42.5],[40,43.5],[37.5,44.5],[35,45.5],[33.5,44.4],[32.5,45.4],[30,45.3],[29.7,44.4],[28.7,43.5],[28,42],[28.2,41.5]];
+const CASPIAN=[[49,37.4],[50.5,37.3],[53,37],[53.5,39],[53,41],[51,44.5],[50,46],[48.5,46],[47.5,44],[48.3,42],[49.2,40.5],[49.4,38.5]];
 const RED=[[32.55,29.95],[32.7,29.2],[33.6,27.7],[34.5,26],[35.6,24],[36.8,22],[39,22],[37.6,24.6],[36.4,26.6],[35.2,28],[34.95,29.55],[34.65,28.8],[34.3,27.8],[33.6,28.3],[32.85,29.8]];
 const GULF=[[47.9,30],[48.8,30.2],[50,29.6],[50,26],[49.5,26.5],[48.5,28],[48,29.3]];
-const CASPIAN=[[49,37.4],[50,37.3],[50,42],[48,42],[47.5,41],[49,40],[49.4,38.5]];
+const DEAD=[[35.45,31.78],[35.55,31.7],[35.58,31.45],[35.5,31.2],[35.45,31],[35.38,31.15],[35.4,31.4],[35.4,31.65]];
+const GALILEE=[[35.55,32.88],[35.62,32.85],[35.65,32.75],[35.6,32.65],[35.55,32.7],[35.52,32.8]];
+const ISLES=[[[12.4,37.8],[13.4,38.2],[15.6,38.25],[15.1,37.3],[15.25,36.7],[14.6,36.8],[12.9,37.6]],
+  [[8.2,41],[9.3,41.2],[9.7,40.5],[9.6,39.2],[9,38.9],[8.4,39.2],[8.4,40]],[[8.6,42.5],[9.4,43],[9.5,42.2],[9.2,41.4],[8.7,41.7]],
+  [[23.5,35.3],[24.2,35.5],[25.3,35.35],[26.3,35.2],[26.2,35],[25,34.95],[24,35.1]],
+  [[32.3,35.05],[33,35.4],[34,35.7],[34.6,35.7],[33.9,35],[33,34.65]]];
 const NILE=[[30.9,31.4],[31.2,30.1],[31.2,29],[30.8,28],[31.2,27],[32,26],[32.7,25.5],[32.9,24],[32.4,22]];
-const JORDAN=[[35.6,33.2],[35.6,32.85],[35.55,32.2],[35.55,31.75]];
 const EUPH=[[38.5,38.5],[38.3,37],[38.6,36],[40.5,35],[41.5,34.4],[43.3,33],[44.4,32.3],[45.7,31],[47,30.8],[47.9,30.2]];
 const TIGRIS=[[40.2,37.9],[42.2,37.2],[43.1,36.3],[43.6,35],[44.4,33.3],[45.5,32.5],[46.5,31.3],[47.4,30.9]];
-const PLACES={jerusalem:[35.23,31.78],bethlehem:[35.2,31.7],nazareth:[35.3,32.7],galilee:[35.5,32.85],capernaum:[35.57,32.88],jericho:[35.44,31.86],hebron:[35.1,31.53],shechem:[35.28,32.21],bethel:[35.22,31.93],beersheba:[34.8,31.25],egypt:[31.2,30],goshen:[31.8,30.6],sinai:[33.97,28.54],"mount sinai":[33.97,28.54],babylon:[44.42,32.54],ur:[46.1,30.96],haran:[39.03,36.86],nineveh:[43.15,36.36],damascus:[36.3,33.5],samaria:[35.19,32.28],moab:[35.8,31.3],edom:[35.5,30.5],canaan:[35.1,31.9],gaza:[34.45,31.5],philistia:[34.55,31.6],assyria:[43.2,36.3],susa:[48.25,32.19],persia:[48.25,32.19],corinth:[22.9,37.9],athens:[23.7,37.98],ephesus:[27.34,37.94],antioch:[36.16,36.2],tarsus:[34.9,36.9],caesarea:[34.9,32.5],patmos:[26.55,37.32],rome:[12.5,41.9],"red sea":[35,26.5],"jordan river":[35.55,32.2],"dead sea":[35.5,31.5],"mount carmel":[35,32.73],shiloh:[35.29,32.06],gilgal:[35.48,31.86],"mount nebo":[35.72,31.77],ararat:[44.3,39.7],"mount ararat":[44.3,39.7],mesopotamia:[44,33.5],"wilderness of sinai":[34,29.5],kadesh:[34.4,30.6],"kadesh barnea":[34.4,30.6],philippi:[24.29,41.01],thessalonica:[22.94,40.64],cyprus:[33.3,35.1],crete:[24.9,35.25],israel:[35.2,31.9],judah:[35.1,31.6],tyre:[35.2,33.27],sidon:[35.37,33.56],"mount moriah":[35.23,31.78],emmaus:[35,31.84],bethany:[35.26,31.77],nain:[35.35,32.63],dan:[35.65,33.25]};
-function placeCoords(pl){
-  const key=String(pl.name||"").toLowerCase().replace(/^the\s+/,"").replace(/\s*\(.*\)\s*/,"").trim();
-  if(PLACES[key])return PLACES[key];
-  for(const k in PLACES)if(key.includes(k))return PLACES[k];
-  const lo=+pl.lon,la=+pl.lat;return isFinite(lo)&&isFinite(la)?[lo,la]:null;
+const JORDANS=[[[35.65,33.25],[35.62,32.9]],[[35.6,32.65],[35.57,32.3],[35.55,32],[35.5,31.8]]];
+const REGIONS={
+  holy:[["Great Sea",33.95,32.9],["Judah",35,31.4],["Samaria",35.1,32.45],["Galilee",35.25,33.05],["Philistia",34.62,31.95],["Moab",35.95,31.25],["Ammon",36.4,31.85],["Gilead",35.95,32.35],["Edom",35.5,29.95],["Negev",34.6,30.35],["Syria",37.2,33.6]],
+  near:[["Great Sea",25.5,34],["Egypt",29,26.5],["Mesopotamia",43.5,34.8],["Arabia",41,27],["Asia Minor",32.5,39.2],["Persia",46.5,39.5]],
+  fit:[["Sumer",46.4,31.7],["Persian Gulf",49.1,28.8],["Aram",38.4,36.1],["Arabia",42.5,29.2]],
+  wide:[["Great Sea",21,34.2],["Greece",21.6,39.5],["Asia Minor",32,39.3],["Egypt",29.5,27],["Libya",17,28.5],["Syria",38.5,35.8],["Arabia",42,27],["Mesopotamia",44,34.6],["Persia",47.5,39]]
+};
+const planOf=n=>BIBLE_PLAN[n-1]||["","",""];
+const readingsText=n=>planOf(n).filter(Boolean).join("; ");
+function checkpointOf(n){const c=CHECKPOINTS.find(x=>n>=x[0]&&n<=x[1]);return c?c[2]:""}
+const isOff=g=>(g[3]&2)>0, isApprox=g=>(g[3]&1)>0;
+function pinsOf(n){const dp=DAY_PINS[n-1];return dp?dp[0].map(x=>({key:x[0],note:x[1],g:GEO[x[0]]})).filter(p=>p.g):[]}
+function autoView(pins){
+  const pts=pins.filter(p=>!isOff(p.g));
+  const fits=v=>pts.every(p=>p.g[1]>=v.x0+.15&&p.g[1]<=v.x1-.15&&p.g[2]>=v.y0+.15&&p.g[2]<=v.y1-.15);
+  return fits(VIEWS.holy)?"holy":fits(VIEWS.near)?"near":"wide";
 }
-function mapSVG(places,journey){
-  const lbl=(x,y,t,o="")=>`<text x="${x}" y="${y}" ${o} fill="var(--maptext)" font-size="9" font-style="italic" opacity=".7" text-anchor="middle">${t}</text>`;
-  const ps=(places||[]).map(p=>({p,c:placeCoords(p)})).filter(x=>x.c);
-  let marks="",route="";
-  const XY=ps.map(({p,c})=>{let x=PX(c[0]),y=PY(c[1]),off=false;
-    if(x<6){x=6;off=true}if(x>MAP.w-6){x=MAP.w-6;off=true}if(y<6){y=6;off=true}if(y>MAP.h-6){y=MAP.h-6;off=true}return{p,x,y,off}});
-  if(journey&&XY.length>1)route=`<polyline points="${XY.map(a=>a.x+","+a.y).join(" ")}" fill="none" stroke="var(--ruby)" stroke-width="2" stroke-dasharray="5 4"/>`;
-  const boxes=[];
-  XY.forEach((a,i)=>{
-    const label=String(a.p.name).replace(/\s*\(.*$/,"")+(a.off?" (off map)":"");
-    const w=label.length*6.6,anchor=a.x>MAP.w-w/2-6?"end":a.x<w/2+6?"start":"middle";
-    const tx=anchor==="end"?a.x-8:anchor==="start"?a.x+8:a.x;
+function fitView(pins){
+  const pts=pins.filter(p=>!isOff(p.g));if(!pts.length)return null;
+  const lons=pts.map(p=>p.g[1]),lats=pts.map(p=>p.g[2]);
+  const mnx=Math.min(...lons),mxx=Math.max(...lons),mny=Math.min(...lats),mxy=Math.max(...lats);
+  const cx=(mnx+mxx)/2,cy=(mny+mxy)/2,sx=Math.max(mxx-mnx,.2),sy=Math.max(mxy-mny,.15);
+  const inHoly=cx>=33.4&&cx<=41.4&&cy>=29.2&&cy<=34.2;
+  const kfit=Math.min(.7*MW/sx,.6*MH/sy);
+  if(kfit<26)return null;
+  const k=Math.min(kfit,inHoly?110:60),lon0=cx-MW/(2*k),lat1=cy+MH/(2*k);
+  return{label:"Auto",lon0,lat1,k,x0:lon0,x1:lon0+MW/k,y0:lat1-MH/k,y1:lat1};
+}
+function viewObj(pins,mv){
+  if(mv==="holy"||mv==="near"||mv==="wide")return VIEWS[mv];
+  return fitView(pins)||(autoView(pins)==="wide"?VIEWS.wide:VIEWS.near);
+}
+function mapSVG(n,V){
+  const pins=pinsOf(n),dp=DAY_PINS[n-1],route=(dp&&dp[1])||[];
+  const X=lon=>(lon-V.lon0)*V.k,Y=lat=>(V.lat1-lat)*V.k;
+  const P=a=>a.map(c=>X(c[0]).toFixed(1)+","+Y(c[1]).toFixed(1)).join(" ");
+  const inV=g=>g[1]>=V.x0&&g[1]<=V.x1&&g[2]>=V.y0&&g[2]<=V.y1;
+  const lbl=a=>inV([0,a[1],a[2]])?`<text x="${X(a[1]).toFixed(1)}" y="${Y(a[2]).toFixed(1)}" fill="var(--maptext)" font-size="9" font-style="italic" opacity=".65" text-anchor="middle">${a[0]}</text>`:"";
+  // the story so far: a count of every place, and small dots for the most recent ones
+  const mine=new Set(pins.map(p=>p.key)),seen=new Set(),recent=[];
+  for(let d=n-1;d>=1;d--){const x=DAY_PINS[d-1];if(!x||!x[0].length)continue;const k=x[0][0][0];if(seen.has(k))continue;seen.add(k);
+    const g=GEO[k];if(g&&!mine.has(k)&&!isOff(g)&&inV(g)&&recent.length<14)recent.push(g)}
+  let dots=recent.map(g=>`<circle cx="${X(g[1]).toFixed(1)}" cy="${Y(g[2]).toFixed(1)}" r="2.6" fill="var(--gold)" opacity=".6" stroke="var(--land)" stroke-width=".8"/>`).join("");
+  const XY=pins.map((p,i)=>{let x=X(p.g[1]),y=Y(p.g[2]),off=isOff(p.g);
+    if(x<10){x=10;off=true}if(x>MW-10){x=MW-10;off=true}if(y<10){y=10;off=true}if(y>MH-10){y=MH-10;off=true}
+    return{p,i,x,y,off}});
+  const line=route.length>1?`<polyline points="${route.map(i=>XY[i]?XY[i].x.toFixed(1)+","+XY[i].y.toFixed(1):"").filter(Boolean).join(" ")}" fill="none" stroke="var(--ruby)" stroke-width="2" stroke-dasharray="5 4"/>`:"";
+  const boxes=[];let marks="";
+  XY.forEach(a=>{
+    const label=a.p.g[0].replace(/\s*\(.*$/,"")+(a.off?" (off map)":"");
+    const w=label.length*6,anchor=a.x>MW-w/2-6?"end":a.x<w/2+6?"start":"middle";
+    const tx=anchor==="end"?a.x-10:anchor==="start"?a.x+10:a.x;
     const x0=anchor==="end"?tx-w:anchor==="start"?tx:tx-w/2;
-    let ty=a.y<30?a.y+18:a.y-10;
-    const hit=y=>boxes.some(b=>x0<b[0]+b[2]&&x0+w>b[0]&&Math.abs(y-b[1])<14);
-    if(hit(ty))ty=a.y+20;if(hit(ty))ty=a.y-26;
-    boxes.push([x0,ty,w]);a.label=label;
-    marks+=`<circle cx="${a.x}" cy="${a.y}" r="${i===0?6:4.5}" fill="var(--ruby)" stroke="#fff" stroke-width="2"/>
-    <text x="${tx}" y="${ty}" text-anchor="${anchor}" font-size="12" font-weight="700" fill="var(--maptext)" stroke="var(--land)" stroke-width="3.5" paint-order="stroke" stroke-linejoin="round">${esc(a.label)}</text>`;
-  });
-  return `<svg viewBox="0 0 ${MAP.w} ${MAP.h}" role="img" aria-label="Map showing ${esc(ps.map(x=>x.p.name).join(", "))}" font-family="Alegreya,Georgia,serif">
-  <rect width="${MAP.w}" height="${MAP.h}" fill="var(--land)"/>
-  <polygon points="${pts(MED)}" fill="var(--sea)"/><polygon points="${pts(BLACK)}" fill="var(--sea)"/>
-  <polygon points="${pts(RED)}" fill="var(--sea)"/><polygon points="${pts(GULF)}" fill="var(--sea)"/><polygon points="${pts(CASPIAN)}" fill="var(--sea)"/>
-  <ellipse cx="${PX(24.9)}" cy="${PY(35.25)}" rx="17" ry="3.5" fill="var(--land)"/>
-  <ellipse cx="${PX(33.3)}" cy="${PY(35.1)}" rx="13" ry="4.5" fill="var(--land)" transform="rotate(-14 ${PX(33.3)} ${PY(35.1)})"/>
-  <circle cx="${PX(28)}" cy="${PY(36.2)}" r="2.5" fill="var(--land)"/>
-  <polyline points="${pts(NILE)}" fill="none" stroke="var(--river)" stroke-width="1.6"/>
-  <polyline points="${pts(EUPH)}" fill="none" stroke="var(--river)" stroke-width="1.6"/>
-  <polyline points="${pts(TIGRIS)}" fill="none" stroke="var(--river)" stroke-width="1.6"/>
-  <polyline points="${pts(JORDAN)}" fill="none" stroke="var(--river)" stroke-width="1.3"/>
-  <circle cx="${PX(35.59)}" cy="${PY(32.82)}" r="2.2" fill="var(--sea)"/>
-  <ellipse cx="${PX(35.5)}" cy="${PY(31.5)}" rx="1.6" ry="4.5" fill="var(--sea)"/>
-  ${lbl(PX(25.5),PY(34),"Great Sea")}${lbl(PX(29),PY(26.5),"Egypt")}${lbl(PX(43.5),PY(34.8),"Mesopotamia")}
-  ${lbl(PX(41),PY(27),"Arabia")}${lbl(PX(32.5),PY(39.2),"Asia Minor")}${lbl(PX(46.5),PY(39.5),"Persia")}
-  ${route}${marks}</svg>`;
+    let ty=a.y-12;
+    const hit=y=>boxes.some(b=>x0<b[0]+b[2]&&x0+w>b[0]&&Math.abs(y-b[1])<12);
+    for(const dy of [-12,21,-25,34]){ty=a.y+dy;if(a.y+dy<9)continue;if(!hit(ty))break}
+    boxes.push([x0,ty,w]);
+    marks+=`<circle cx="${a.x.toFixed(1)}" cy="${a.y.toFixed(1)}" r="7.5" fill="var(--ruby)" stroke="#fff" stroke-width="2"/>
+    <text x="${a.x.toFixed(1)}" y="${(a.y+3.4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">${a.i+1}</text>
+    <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" font-size="11" font-weight="700" fill="var(--maptext)" stroke="var(--land)" stroke-width="3.5" paint-order="stroke" stroke-linejoin="round">${esc(label)}</text>`});
+  return {svg:`<svg viewBox="0 0 ${MW} ${MH}" role="img" aria-label="Map showing ${esc(pins.map(p=>p.g[0]).join(", "))}" font-family="Alegreya,Georgia,serif">
+  <rect width="${MW}" height="${MH}" fill="var(--land)"/>
+  <polygon points="${P(SEA)}" fill="var(--sea)"/><polygon points="${P(BLACK)}" fill="var(--sea)"/><polygon points="${P(CASPIAN)}" fill="var(--sea)"/>
+  <polygon points="${P(RED)}" fill="var(--sea)"/><polygon points="${P(GULF)}" fill="var(--sea)"/>
+  ${ISLES.map(a=>`<polygon points="${P(a)}" fill="var(--land)"/>`).join("")}
+  <polyline points="${P(NILE)}" fill="none" stroke="var(--river)" stroke-width="1.6"/><polyline points="${P(EUPH)}" fill="none" stroke="var(--river)" stroke-width="1.6"/>
+  <polyline points="${P(TIGRIS)}" fill="none" stroke="var(--river)" stroke-width="1.6"/>
+  ${JORDANS.map(a=>`<polyline points="${P(a)}" fill="none" stroke="var(--river)" stroke-width="${V.k>=40?2:1.2}"/>`).join("")}
+  <polygon points="${P(DEAD)}" fill="var(--sea)"/><polygon points="${P(GALILEE)}" fill="var(--sea)"/>
+  ${(V.k>=30?[...REGIONS.holy,...REGIONS.near,...REGIONS.fit]:V===VIEWS.wide?REGIONS.wide:REGIONS.near).map(lbl).join("")}
+  ${dots}${line}${marks}</svg>`,seen:seen.size};
+}
+function mapPanelHTML(n){
+  const pins=pinsOf(n);if(!pins.length)return "";
+  const per=periodOf(n),cp=checkpointOf(n);
+  const m=mapSVG(n,viewObj(pins,S.mapView||"auto"));
+  const list=pins.map((p,i)=>`<li><span class="pn">${i+1}</span><span><span class="where">${esc(p.g[0])}</span>${p.note?` <span class="note">${esc(p.note)}</span>`:""}</span></li>`).join("");
+  const btn=(k,l)=>`<button data-mapview="${k}" aria-pressed="${(S.mapView||"auto")===k}"><span>${l}</span></button>`;
+  return `<section class="panel" aria-labelledby="mh">
+    <span class="period" style="border-color:${per.color}">${esc(cp||per.name)}</span>
+    <h2 id="mh">Where we are, Day ${n}</h2>
+    <p class="readings">Readings: ${esc(readingsText(n))}</p>
+    <div class="map">${m.svg}</div>
+    <div class="seg" role="group" aria-label="Map zoom">${btn("auto","Auto")}${btn("holy","Close-up")}${btn("near","Region")}${btn("wide","Wide")}</div>
+    <ol class="pinlist">${list}</ol>
+    <p class="legend"><span><i style="background:var(--ruby)"></i>Today's places</span><span><i style="background:var(--gold)"></i>Visited so far</span></p>
+    <p class="small" style="margin:4px 0 0">${n>1?`${m.seen} places visited in the story so far. `:"The story begins here. "}${pins.some(p=>isApprox(p.g))?"Some places are traditional or approximate.":""}</p>
+  </section>`;
 }
 
 /* ---------- writes ---------- */
@@ -333,8 +392,8 @@ async function savePlayer(patch){
   after.cards.filter(x=>!before.cards.includes(x)).forEach(id=>toast("New calling card: "+CARDS.find(c=>c.id===id).name));
   after.emblems.filter(x=>!before.emblems.includes(x)).forEach(id=>toast("New emblem: "+EMBLEMS.find(e=>e.id===id).name));
   render();
-  if(S.local){lsSet("yow-me",next);return true}
-  return persistMe();
+  if(S.local){lsSet("yow-me",next);setTimeout(checkWeekly,0);return true}
+  const saved=persistMe();setTimeout(checkWeekly,0);return saved;
 }
 function persistMe(){
   const snap=S.me;S.saving++;
@@ -494,6 +553,7 @@ function todayHTML(){
   </section>
   <div class="grid365" aria-label="${st.done} of 365 days finished">${cells}</div>
   </div><div class="tcol-b">
+  ${mapPanelHTML(n)}
   ${glanceHTML(n,dd)}
   ${dd&&dd.quiz?quizHTML(n,dd):""}
   ${reflectHTML(n,dd,j)}
@@ -502,27 +562,20 @@ function todayHTML(){
 
 function glanceHTML(n,dd){
   const ready=dd&&dd.recap;
-  if(dd===undefined&&!S.local)return `<section class="panel"><p class="small">Loading Day ${n}…</p></section>`;
-  if(!ready||S.redoDay===n){
-    if(!S.ai)return `<section class="panel"><h2>Day ${n} at a glance</h2><p class="small">Today's study guide hasn't been added yet. You can still listen, mark the day finished, and write your reflection below.</p></section>`;
+  if(dd===undefined&&!S.local)return "";
+  if(!ready){
+    if(!S.ai)return "";
     const busy=S.busy["gen"+n];
-    return `<section class="panel"><h2>Day ${n} at a glance</h2>
-    <p class="lede">${S.redoDay===n?"Type the correct readings and everything for this day gets rewritten.":"Build today's recap, key verse, map, quiz and questions. The first person to do this sets it up for everyone."}</p>
-    <label class="l" for="readIn">Today's readings <span class="small">(optional, from the episode description)</span></label>
-    <input type="text" id="readIn" data-keep="read${n}" placeholder="e.g. Genesis 1–2, Psalm 19" value="${esc(S.redoDay===n&&dd?dd.readings||"":"")}">
-    <div class="row" style="margin-top:12px">${S.redoDay===n?`<button class="btn" id="cancelRedo" style="flex:1">Keep current</button>`:""}
-    <button class="btn primary" id="genDay" style="flex:2" ${busy?"disabled":""}>${busy?"Preparing Day "+n+"… (up to a minute)":S.redoDay===n?"Rewrite Day "+n:"Prepare Day "+n}</button></div>
+    return `<section class="panel"><h2>Study guide for Day ${n}</h2>
+    <p class="lede">Get a short recap, key verse and quiz for today's readings. The first person to do this sets it up for everyone.</p>
+    <button class="btn primary" id="genDay" style="width:100%" ${busy?"disabled":""}>${busy?"Preparing Day "+n+"… (up to a minute)":"Prepare Day "+n}</button>
     <p class="small" id="genStatus" role="status">${esc(S.busy["genErr"+n]||"")}</p></section>`;
   }
-  const places=dd.places||[];
   return `<section class="panel" aria-labelledby="gh">
-    <span class="period" style="border-color:${periodOf(n).color}">${esc(periodOf(n).name)}</span>
     <h2 id="gh">Day ${n} at a glance</h2>
-    <p class="readings">Readings: ${esc(dd.readings||"not specified")}</p>
     <p class="recap">${esc(dd.recap)}</p>
     ${dd.verse&&dd.verse.text?`<figure class="verse"><blockquote>${esc(dd.verse.text)}</blockquote><cite>${esc(dd.verse.ref||"")}</cite>${dd.verseWhy?`<p>${esc(dd.verseWhy)}</p>`:""}</figure>`:""}
-    ${places.length?`<h3>Where it happens</h3><div class="map">${mapSVG(places,dd.journey)}</div>${dd.placeWhy?`<p class="small" style="margin:0 0 8px">${esc(dd.placeWhy)}</p>`:""}`:""}
-    ${S.isAdmin&&S.ai?`<p class="small" style="margin:10px 0 0">Readings look wrong? <button class="linkbtn" id="redo">Fix the readings</button></p>`:""}
+    ${S.busy["gen"+n]?`<p class="small">Rewriting this study guide…</p>`:S.isAdmin&&S.ai?`<p class="small" style="margin:10px 0 0"><button class="linkbtn" id="redo">Rewrite this study guide</button></p>`:""}
   </section>`;
 }
 
@@ -582,8 +635,6 @@ function discussHTML(n){
 function fellowshipHTML(){
   const list=Object.entries(S.players).filter(([,p])=>p&&p.name).map(([id,p])=>({id,p,s:stats(p)}));
   list.sort((a,b)=>b.s.xp-a.s.xp||b.s.done-a.s.done||a.p.name.localeCompare(b.p.name));
-  const minDone=list.length?Math.min(...list.map(x=>x.s.done)):0,total=list.reduce((t,x)=>t+x.s.done,0);
-  const C=currentChallenge(),won=C.prog>=1,daysLeft=6-((new Date().getDay()+6)%7);
   const rows=list.map((x,i)=>{
     const u=unlocked(x.p),em=EMBLEMS.find(e=>e.id===x.p.emblem&&u.emblems.includes(e.id));
     const card=u.cards.includes(x.p.card)?x.p.card:"vigil",rk=rankOf(x.s.xp).name;
@@ -598,25 +649,44 @@ function fellowshipHTML(){
     </button>
     </li>`}).join("");
   return `<div class="fgrid"><div>
-  <section class="panel challenge" aria-labelledby="ch">
-    <h2 id="ch">This week's team challenge</h2>
-    <p style="margin:0">${esc(C.ch.t)}. ${C.per.length<2?"Team challenges start once a friend joins.":won?"<strong>Done! Everyone earns 25 XP.</strong>":daysLeft?pl(daysLeft,"day")+" left.":"Last day!"}</p>
-    <div class="goalbar"><span style="width:${(Math.min(1,C.prog)*100).toFixed(1)}%"></span></div>
-    <ul class="mini">${C.per.map(x=>`<li><span>${esc(x.p.name)}</span><span>${Math.min(x.v,C.ch.goal)} / ${C.ch.goal} ${C.ch.unit}</span></li>`).join("")}</ul>
-  </section>
-  ${recapHTML()}
-  <section class="panel">
-    <h2>Through the Bible together</h2>
-    <p class="lede" style="margin:0">${list.length<2?"It's just you so far. Invite friends and family to join you.":`Everyone has made it past <strong>Day ${minDone}</strong>. ${total} episodes finished between ${list.length} of you.`}</p>
-    <div class="goalbar"><span style="width:${(minDone/TOTAL*100).toFixed(1)}%"></span></div>
-    <p class="small" style="margin:0">The group reaches 365 when the last of you does.</p>
-    <button class="btn" data-setup style="width:100%;margin-top:12px">Invite people and get it on your phone</button>
-  </section>
+  ${teamCardHTML()}${soloCardHTML()}${communityHTML()}${recapHTML()}
   </div><div>
   <h2>Leaderboard</h2>
   <p class="lede">Tap anyone to see their profile and badges, or send encouragement.</p>
   <ol class="board">${rows||`<p class="lede">No one has joined yet.</p>`}</ol></div></div>`;
 }
+function daysLeftInWeek(){return 6-((new Date().getDay()+6)%7)}
+const barHTML=pct=>`<div class="goalbar"><span style="width:${(Math.min(1,Math.max(0,pct))*100).toFixed(1)}%"></span></div>`;
+function teamCardHTML(){
+  const t=S.team;if(S.local||!t)return "";
+  const C=currentChallenge(),goal=teamGoal(t,C.ch),v=C.ch.tm(t),done=v>=goal,dl=daysLeftInWeek();
+  return `<section class="panel challenge" aria-labelledby="tc"><h2 id="tc">Our week together</h2>
+    <p class="big-num">${v.toLocaleString()} <span>of ${goal.toLocaleString()}</span></p>
+    <p style="margin:0">${esc(C.ch.tt.charAt(0).toUpperCase()+C.ch.tt.slice(1))}. ${done?"<strong>We did it! Everyone who read this week earns 25 XP.</strong>":"Every bit helps. "+(dl?pl(dl,"day")+" left.":"Last day!")}</p>
+    ${barHTML(v/goal)}
+    <p class="small" style="margin:0">${pl(t.readers,"reader")} joined in this week. Totals only, no names.</p></section>`;
+}
+function soloCardHTML(){
+  if(!S.me)return "";
+  const C=currentChallenge(),mine=C.ch.f(weekActivity(S.me,C.ws)),goal=C.ch.goal,done=mine>=goal;
+  return `<section class="panel" aria-labelledby="sc"><h2 id="sc">Your week</h2>
+    <p style="margin:0">Goal: ${esc(C.ch.t.toLowerCase())}. ${done?"<strong>You did it! +15 XP.</strong>":"Any progress counts. No rush."}</p>
+    ${barHTML(mine/goal)}
+    <p class="small" style="margin:0">${Math.min(mine,goal)} of ${goal} ${C.ch.unit}. Only you can see this.</p></section>`;
+}
+function communityHTML(){
+  const t=S.team,invite=`<button class="btn" data-setup style="width:100%;margin-top:12px">Invite people and get it on your phone</button>`;
+  if(S.local||!t)return `<section class="panel"><h2>Through the Bible together</h2><p class="lede" style="margin:0">Invite friends and family to read along with you.</p>${invite}</section>`;
+  const total=t.episodes_total,next=MILESTONES.find(m=>total<m[0]),prev=[...MILESTONES].reverse().find(m=>total>=m[0]);
+  const base=prev?prev[0]:0;
+  return `<section class="panel"><h2>Through the Bible together</h2>
+    <p class="lede" style="margin:0"><strong>${total.toLocaleString()}</strong> episodes finished by ${pl(t.members,"reader")} so far.</p>
+    ${next?barHTML((total-base)/(next[0]-base)):barHTML(1)}
+    <p class="small" style="margin:0">${next?`${(next[0]-total).toLocaleString()} more episodes to unlock “${esc(next[2])}”.`:"Every community badge is unlocked!"}</p>
+    <div class="badgerow">${MILESTONES.map(m=>{const ok=total>=m[0];return `<div class="mbadge${ok?"":" off"}" title="${esc(m[2])}">${emblemSVG({glyph:m[1],c:"#94701F"},!ok)}<span>${esc(m[2])}</span></div>`}).join("")}</div>
+    ${invite}</section>`;
+}
+
 
 function prayerHTML(){
   if(S.local)return `<h2>Prayer requests</h2><p class="lede">The prayer wall isn't available yet.</p>`;
@@ -651,7 +721,7 @@ function armoryHTML(){
   <section class="panel rankbox"><h2>${esc(rk.name)}, ${st.xp} XP</h2>
     <div class="goalbar"><span style="width:${pct}%"></span></div>
     <p class="small" style="margin:0 0 10px">${rk.next?`${rk.next[0]-st.xp} XP to ${rk.next[1]}`:"The highest rank. Well done, good and faithful servant."}</p>
-    <p class="small" style="margin:0">Earn XP: 10 per episode, 5 per reflection, 2 per quiz answer, 25 per team challenge win. Ranks: ${RANKS.map(r=>r[1]).join(", ")}.</p>
+    <p class="small" style="margin:0">Earn XP: 10 per episode, 5 per reflection, 2 per quiz answer, 15 for reaching your weekly goal, 25 when the team reaches its goal. Ranks: ${RANKS.map(r=>r[1]).join(", ")}.</p>
     <p class="small" style="margin:8px 0 0">Streak freezes: ${st.freezes} of 3. You earn one every 7 days in a row, and one is used automatically if you miss a day.</p>
   </section>
   <h2>Calling cards</h2><p class="lede">Your card is the banner behind you on the leaderboard.</p>
@@ -688,8 +758,8 @@ function bindView(){
   });
   on("undo",()=>{const n=S.viewDay,doneOn={...(S.me.doneOn||{})};delete doneOn[n];savePlayer({completed:(S.me.completed||[]).filter(x=>x!==n),doneOn})});
   on("genDay",()=>genDay(S.viewDay));
-  on("redo",()=>{S.redoDay=S.viewDay;render();const r=$("#readIn");if(r)r.focus()});
-  on("cancelRedo",()=>{S.redoDay=null;render()});
+  on("redo",()=>{S.redoDay=S.viewDay;genDay(S.viewDay)});
+  all("[data-mapview]",b=>{S.mapView=b.dataset.mapview;render()});
   on("submitQuiz",submitQuiz);
   on("fb",()=>getFeedback(S.viewDay));
   on("share",shareAnswers);
@@ -737,7 +807,7 @@ function markDone(){
 
 async function genDay(n){
   if(!S.ai)return;
-  const force=S.redoDay===n,input=$("#readIn"),readings=input?input.value.trim():"";
+  const force=S.redoDay===n,readings=readingsText(n);
   S.busy["gen"+n]=true;S.busy["genErr"+n]="";render();
   try{
     const r=await Backend.aiStudyGuide({day:n,period:periodOf(n).name,readings});
@@ -746,8 +816,7 @@ async function genDay(n){
     if(!r||!r.recap||!Array.isArray(r.questions))throw{code:"bad_output"};
     const doc={readings:String(r.readings||readings||""),period:String(r.period||""),recap:String(r.recap),
       verse:r.verse&&r.verse.text?{ref:String(r.verse.ref||""),text:String(r.verse.text)}:null,verseWhy:String(r.verseWhy||""),
-      places:(Array.isArray(r.places)?r.places:[]).slice(0,3).map(p=>({name:String(p.name||""),lat:+p.lat,lon:+p.lon})).filter(p=>p.name),
-      journey:!!r.journey,placeWhy:String(r.placeWhy||""),questions:r.questions.slice(0,3).map(String),quiz,at:Date.now()};
+      questions:r.questions.slice(0,3).map(String),quiz,at:Date.now()};
     if(S.day.doc&&S.day.doc.yt)doc.yt=S.day.doc.yt;
     S.redoDay=null;S.busy["gen"+n]=false;
     await saveDayDoc(n,doc);
@@ -815,10 +884,15 @@ async function sendCheer(to,kind){
   if(ok){S.cheerOpen=null;toast("Sent to "+nameOf(to)+".");if(!existed)savePlayer({cheersSent:(S.me.cheersSent||0)+1});else render()}
 }
 function checkWeekly(){
-  if(!S.me||S.local)return;
-  const C=currentChallenge();
-  if(C.prog>=1&&C.per.length>=2&&!(S.me.wins||[]).includes(C.ws)&&S.winPending!==C.ws){
-    S.winPending=C.ws;toast("Your team completed this week's challenge! +25 XP");
+  if(!S.me)return;
+  const C=currentChallenge(),mine=C.ch.f(weekActivity(S.me,C.ws));
+  if(mine>=C.ch.goal&&!(S.me.solo||[]).includes(C.ws)&&S.soloPending!==C.ws){
+    S.soloPending=C.ws;toast("You reached this week's goal! +15 XP");
+    savePlayer({solo:[...(S.me.solo||[]),C.ws]});
+  }
+  const t=S.team;
+  if(!S.local&&t&&mine>0&&C.ch.tm(t)>=teamGoal(t,C.ch)&&!(S.me.wins||[]).includes(C.ws)&&S.winPending!==C.ws){
+    S.winPending=C.ws;toast("Our team reached this week's goal! +25 XP");
     savePlayer({wins:[...(S.me.wins||[]),C.ws]});
   }
 }
@@ -1042,7 +1116,7 @@ function celebrate(n,streak){
   const p=periodOf(n),cols=[p.pal[0],p.pal[1],p.pal[3],"#F2D27C"];
   let bits="";
   if(!reduce)for(let i=0;i<40;i++){const a=Math.random()*Math.PI*2,d=110+Math.random()*190;
-    bits+=`<i class="${i%4===0?"g":""}" style="--x:${(Math.cos(a)*d).toFixed(0)}px;--y:${(Math.sin(a)*d+60).toFixed(0)}px;--r:${(Math.random()*600-300).toFixed(0)}deg;--c:${cols[i%4]};--d:${(Math.random()*.2).toFixed(2)}s">${i%4===0?"✝":""}</i>`}
+    bits+=`<i class="${i%4===0?"g":""}" style="--x:${(Math.cos(a)*d).toFixed(0)}px;--y:${(Math.sin(a)*d+60).toFixed(0)}px;--r:${(Math.random()*600-300).toFixed(0)}deg;--c:${cols[i%4]};--d:${(Math.random()*.2).toFixed(2)}s">${i%4===0?"\u271D\uFE0E":""}</i>`}
   const lines=["Well done, good and faithful servant.","Another step through salvation history.","The Word is living and active.","Keep going. The story's getting good."];
   const el=document.createElement("div");el.className="celebrate";
   el.innerHTML=`<div class="cel-card" role="status"><p class="cel-day">Day ${n} done</p><p class="cel-msg">${streak>1?`${streak}-day streak! `:""}${lines[n%lines.length]}</p></div>${bits}`;
@@ -1183,22 +1257,25 @@ function fmtRange(ws){
   return m(a)+" "+a.getDate()+"–"+(m(a)===m(b)?"":m(b)+" ")+b.getDate();
 }
 function weekRecap(ws){
-  const we=shift(ws,6);
-  const members=Object.entries(S.players).filter(([,p])=>p&&p.name)
-    .map(([id,p])=>({id,p,a:weekActivity(p,ws),st:stats(p),day:Math.min(TOTAL,nextDay(p))}))
-    .sort((x,y)=>y.a.ep-x.a.ep||y.st.streak-x.st.streak||x.p.name.localeCompare(y.p.name));
-  const sum=k=>members.reduce((t,m)=>t+m.a[k],0);
-  const champ=members.filter(m=>m.a.qp>0).sort((x,y)=>y.a.qp-x.a.qp)[0]||null;
+  const we=shift(ws,6),cur=ws===weekStart(today());
+  const t=cur?S.team:(S.teamCache[ws]||null);
+  if(!cur&&!t&&!S.local&&!S.teamLoading[ws])loadTeamWeek(ws);
   const prayers=S.prayers.filter(pr=>{const d=dstr(new Date(pr.at||0));return d>=ws&&d<=we}).length;
-  return{ws,members,eps:sum("ep"),refl:sum("rf"),qp:sum("qp"),champ,prayers,C:challengeFor(ws),current:ws===weekStart(today())};
+  return{ws,t,mine:weekActivity(S.me,ws),st:stats(S.me),C:challengeFor(ws),current:cur,prayers};
+}
+async function loadTeamWeek(ws){
+  S.teamLoading[ws]=true;
+  try{S.teamCache[ws]=normalizeTeam(await Backend.teamTotals(ws));scheduleRender()}catch(e){}
 }
 function recapText(R){
-  const L=[`${APP_NAME}: week of ${fmtRange(R.ws)}`,
-    `Together we finished ${pl(R.eps,"episode")}${R.refl?`, wrote ${pl(R.refl,"reflection")}`:""}${R.qp?` and scored ${R.qp} quiz points`:""}.`,""];
-  R.members.forEach(m=>L.push(`${m.p.name}: ${pl(m.a.ep,"episode")}, now on Day ${m.day}, ${streakTxt(m.st.streak)}`));
-  L.push("");
-  if(R.C.per.length>=2)L.push(`Team challenge (${R.C.ch.t.toLowerCase()}): ${R.C.prog>=1?"completed!":Math.round(R.C.prog*100)+"% of the way"+(R.current?" so far":"")}`);
-  if(R.champ)L.push(`Quiz champ: ${R.champ.p.name} with ${R.champ.a.qp} points`);
+  const L=[`${APP_NAME}: week of ${fmtRange(R.ws)}`];
+  if(R.t)L.push(`Together we finished ${pl(R.t.ep,"episode")}, wrote ${pl(R.t.rf,"reflection")}, and ${pl(R.t.readers,"reader")} joined in.`,"");
+  L.push(`My week: ${pl(R.mine.ep,"episode")}, ${streakTxt(R.st.streak)}.`);
+  if(R.t){
+    const g=teamGoal(R.t,R.C.ch),v=R.C.ch.tm(R.t);
+    L.push(`Weekly goal (${R.C.ch.t.toLowerCase()}): ${v>=g?"our team reached it!":Math.min(100,Math.round(v/g*100))+"% of the way"+(R.current?" so far":"")}`);
+    L.push(`Community total: ${R.t.episodes_total.toLocaleString()} episodes finished together.`);
+  }
   if(R.prayers)L.push(`Prayer requests shared: ${R.prayers}`);
   L.push("",`Keep going, everyone! ${APP_URL}`);
   return L.join("\n").replace(/\n{3,}/g,"\n\n");
@@ -1235,20 +1312,25 @@ async function recapPNG(R,withImgs){
   const SC="'Alegreya SC', Georgia, serif",AL="Alegreya, Georgia, serif";
   g.fillStyle="#D9B45F";g.font=`800 64px ${SC}`;g.fillText(APP_NAME,86,150);
   g.fillStyle="#EEE6D3";g.font=`500 40px ${AL}`;g.fillText("Week of "+fmtRange(R.ws),86,210);
-  g.fillStyle="#F2D27C";g.font=`800 150px ${SC}`;g.fillText(String(R.eps),86,380);
-  g.fillStyle="#EEE6D3";g.font=`500 38px ${AL}`;g.fillText(R.eps===1?"episode finished together":"episodes finished together",86,432);
-  let y=520;const rows=R.members.slice(0,7);
-  for(const m of rows){
-    if(withImgs){const av=await loadImg(svgURL(avatar(m.p),80,80));if(av){g.save();g.beginPath();g.arc(126,y+40,40,0,Math.PI*2);g.clip();g.drawImage(av,86,y,80,80);g.restore()}}
-    else{g.fillStyle=m.p.color||"#555";g.beginPath();g.arc(126,y+40,40,0,Math.PI*2);g.fill()}
-    g.fillStyle="#FFFFFF";g.font=`700 40px ${AL}`;g.fillText(m.p.name.slice(0,22),190,y+36);
-    g.fillStyle="#B8B5C9";g.font=`400 30px ${AL}`;g.fillText(`${pl(m.a.ep,"episode")}, now on Day ${m.day}, ${streakTxt(m.st.streak)}`,190,y+76);
-    y+=104;
+  const eps=R.t?R.t.ep:R.mine.ep;
+  g.fillStyle="#F2D27C";g.font=`800 150px ${SC}`;g.fillText(String(eps),86,380);
+  g.fillStyle="#EEE6D3";g.font=`500 38px ${AL}`;g.fillText(R.t?(eps===1?"episode finished together":"episodes finished together"):(eps===1?"episode finished this week":"episodes finished this week"),86,432);
+  let y=540;
+  if(R.t){
+    const goal=teamGoal(R.t,R.C.ch),v=R.C.ch.tm(R.t),pct=Math.min(1,v/goal);
+    g.fillStyle="#EEE6D3";g.font=`500 36px ${AL}`;g.fillText("Weekly goal: "+R.C.ch.t.toLowerCase(),86,y);
+    g.fillStyle="rgba(255,255,255,.16)";g.fillRect(86,y+26,W-172,30);
+    g.fillStyle="#D9B45F";g.fillRect(86,y+26,Math.max(8,(W-172)*pct),30);
+    g.fillStyle="#B8B5C9";g.font=`400 32px ${AL}`;g.fillText(v>=goal?"Our team reached it!":Math.round(pct*100)+"% of the way",86,y+110);
+    y+=190;
+    g.fillStyle="#EEE6D3";g.font=`500 34px ${AL}`;g.fillText(`${pl(R.t.readers,"reader")} joined in this week`,86,y);
+    y+=62;
+    g.fillText(`${R.t.episodes_total.toLocaleString()} episodes finished together so far`,86,y);
+    y+=110;
   }
-  if(R.members.length>7){g.fillStyle="#B8B5C9";g.font=`400 30px ${AL}`;g.fillText(`and ${R.members.length-7} more`,190,y+20);y+=40}
-  g.fillStyle="#EEE6D3";g.font=`500 32px ${AL}`;let fy=Math.max(y+40,H-210);
-  if(R.C.per.length>=2){g.fillText(`Team challenge: ${R.C.prog>=1?"completed!":Math.round(R.C.prog*100)+"% of the way"}`,86,fy);fy+=48}
-  if(R.champ){g.fillText(`Quiz champ: ${R.champ.p.name} (${R.champ.a.qp} points)`,86,fy);fy+=48}
+  if(withImgs){const av=await loadImg(svgURL(avatar(S.me),96,96));if(av){g.save();g.beginPath();g.arc(134,y+48,48,0,Math.PI*2);g.clip();g.drawImage(av,86,y,96,96);g.restore()}}
+  g.fillStyle="#FFFFFF";g.font=`700 42px ${AL}`;g.fillText("My week",210,y+44);
+  g.fillStyle="#B8B5C9";g.font=`400 32px ${AL}`;g.fillText(`${pl(R.mine.ep,"episode")}, ${streakTxt(R.st.streak)}`,210,y+88);
   g.fillStyle="#D9B45F";g.font=`700 30px ${SC}`;g.fillText("The Bible in a Year, together",86,H-80);
   return await new Promise((res,rej)=>{try{c.toBlob(b=>b?res(b):rej(new Error("blob")),"image/png")}catch(e){rej(e)}});
 }
@@ -1382,7 +1464,7 @@ let sessionUid=null;
 function stopLive(){S.liveStops.forEach(f=>{try{f()}catch(e){}});S.liveStops=[];S.day.unsubs.forEach(u=>{try{u()}catch(e){}});S.day={n:null,doc:undefined,comments:[],answers:{},rx:[],unsubs:[]}}
 function resetAccountState(){
   stopLive();
-  Object.assign(S,{session:null,uid:null,email:"",me:null,players:{},extra:{},isAdmin:false,ai:false,prayers:[],prayRx:[],cheers:[],journal:{},quizSel:{},viewDay:null,redoDay:null,busy:{},frozeChecked:false,winPending:null,tab:"today",saving:0});
+  Object.assign(S,{session:null,uid:null,email:"",me:null,players:{},extra:{},isAdmin:false,ai:false,prayers:[],prayRx:[],cheers:[],journal:{},quizSel:{},viewDay:null,redoDay:null,busy:{},frozeChecked:false,winPending:null,soloPending:null,team:null,teamCache:{},teamLoading:{},tab:"today",saving:0});
   clearTimeout(retryTimer);retryTimer=null;saveChain=Promise.resolve();
 }
 function startLive(){
@@ -1396,6 +1478,7 @@ function startLive(){
   S.liveStops.push(Backend.watchPrayers(rows=>{S.prayers=rows;ensureProfiles(rows.map(r=>r.uid));if(S.tab==="prayer")scheduleRender()}));
   S.liveStops.push(Backend.watchReactions("prayers",rows=>{S.prayRx=rows;if(S.tab==="prayer")scheduleRender()}));
   S.liveStops.push(Backend.watchCheers(today(),rows=>{S.cheers=rows;scheduleRender()}));
+  S.liveStops.push(Backend.watchTeam(weekStart(today()),t=>{S.team=normalizeTeam(t);checkWeekly();if(S.tab==="fellowship")scheduleRender()}));
 }
 async function loadAccount(){
   const [r,adm,ai]=await Promise.all([Backend.loadMe(),Backend.isAdmin(),Backend.aiStatus()]);

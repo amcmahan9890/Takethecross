@@ -20,6 +20,7 @@ const SITE_FILES = [
   "theme.js",
   "app.js",
   "backend.js",
+  "bible-plan.js",
   "manifest.webmanifest",
   "favicon.svg",
   "icon-192.png",
@@ -41,12 +42,32 @@ for (const f of SITE_FILES) {
 }
 
 // ---- config.js (public settings only) ----
-const url = (process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+let url = (process.env.SUPABASE_URL || "").trim();
 const key = (process.env.SUPABASE_ANON_KEY || "").trim();
 
+// Keep only https://YOUR-REF.supabase.co (drops things like /rest/v1/ or a trailing slash).
+if (url) {
+  try {
+    const u = new URL(url);
+    const clean = u.origin;
+    if (clean !== url) console.warn(`NOTE: SUPABASE_URL was cleaned from "${url}" to "${clean}".`);
+    url = clean;
+  } catch {
+    console.error(`Build failed: SUPABASE_URL "${url}" is not a valid address. It should look like https://YOUR-REF.supabase.co`);
+    process.exit(1);
+  }
+}
+
+if (/^re_/.test(key)) {
+  console.error("Build failed: SUPABASE_ANON_KEY starts with re_, which is an email-service key, not a Supabase key. Use the Supabase publishable key (starts with sb_publishable_).");
+  process.exit(1);
+}
 if (/service_role|sb_secret_/i.test(key) || (key.split(".").length === 3 && isServiceRoleJwt(key))) {
   console.error("Build failed: SUPABASE_ANON_KEY looks like a SECRET key. Use the publishable (or anon) key instead.");
   process.exit(1);
+}
+if (key && !/^sb_publishable_/.test(key) && key.split(".").length !== 3) {
+  console.warn("WARNING: SUPABASE_ANON_KEY does not look like a Supabase publishable (sb_publishable_...) or anon key.");
 }
 
 if (!url || !key) {

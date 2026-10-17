@@ -371,3 +371,18 @@ html{font-size:100%}
 .adm-row .nm{font-weight:700}
 .adm-row .meta{font-size:.82rem;color:var(--muted)}
 .errbox{text-align:center;padding:60px 10px}
+
+/* map panel + team cards */
+.pinlist{list-style:none;margin:12px 0 4px;padding:0;display:grid;gap:7px}
+.pinlist li{display:flex;gap:10px;align-items:flex-start;font-size:.97rem;line-height:1.35}
+.pn{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ruby);color:#fff;font-weight:700;font-size:.78rem;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.pinlist .where{font-weight:700}
+.pinlist .note{color:var(--muted)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.82rem;color:var(--muted);margin:8px 0 0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.big-num{font-family:"Alegreya SC",Georgia,serif;font-weight:800;color:var(--gold);font-size:2.1rem;margin:2px 0 4px;line-height:1.1}
+.big-num span{font-size:1rem;color:var(--muted);font-weight:500}
+.badgerow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 8px;margin:14px 0 4px}
+.mbadge{display:flex;flex-direction:column;align-items:center;text-align:center;font-size:.74rem;line-height:1.2;color:var(--muted);gap:3px}
+.mbadge svg{width:38px;height:44px}
+.mbadge.off{opacity:.55}
